@@ -35,7 +35,7 @@ void Disassemble(unsigned char * opcode,int * opcodeLength){
         }
         case 0x06:{
             printf("MVI B,%02X",ptr[1]);
-            *opcodeLength = 1;
+            *opcodeLength = 2;
             break;
         }
         case 0x07:{
@@ -80,7 +80,7 @@ void Disassemble(unsigned char * opcode,int * opcodeLength){
         }
         case 0x11:{
         	printf("LXI D,%02x,%02x",ptr[1],ptr[2]);
-        	*opcodeLength = 1;
+        	*opcodeLength = 3;
         	break;
         }
         case 0x12:{
@@ -159,8 +159,6 @@ void Disassemble(unsigned char * opcode,int * opcodeLength){
         	break;
         }
         case 0x22:{
-        	//Todo: Check if the address is shown in the right format.
-        	//Even if it is, we have to cater for big endian
         	printf("SHLD %02x%02x",ptr[2],ptr[1]);
         	*opcodeLength = 3;
         	break;
@@ -236,8 +234,8 @@ void Disassemble(unsigned char * opcode,int * opcodeLength){
         	break;
         }
         case 0x32:{
-        	printf("STA %02x",ptr[1]);
-        	*opcodeLength = 2;
+        	printf("STA %02x%02x",ptr[2],ptr[1]);
+        	*opcodeLength = 3;
         	break;
         }
         case 0x33:{
@@ -1061,8 +1059,8 @@ void Disassemble(unsigned char * opcode,int * opcodeLength){
         	break;
         }
         case 0xda:{
-        	printf("JC %02x",ptr[1]);
-        	*opcodeLength = 2;
+        	printf("JC %02x%02x",ptr[2],ptr[1]);
+        	*opcodeLength = 3;
         	break;
         }
         case 0xdb:{
@@ -1072,7 +1070,7 @@ void Disassemble(unsigned char * opcode,int * opcodeLength){
         }
         case 0xdc:{
         	printf("CC %02x%02x",ptr[2],ptr[1]);
-        	*opcodeLength = 1;
+        	*opcodeLength = 3;
         	break;
         }
         case 0xde:{

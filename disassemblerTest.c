@@ -1,11 +1,23 @@
 #include <stdlib.h>
+#include <stdio.h>
 #include "Disassembler/Disassembler.h"
-int main(){
-    unsigned char buffer[] = {0x00,0x01,0x23,0x24,0x07,0x09,0x02};
+int main(int argumentCount, char ** arguments){
+	FILE * filePointer = fopen(arguments[1], "rb");
+	if (filePointer == NULL)    
+    {    
+        printf("error: Couldn't open %s\n", arguments[1]);    
+        exit(1);    
+    }
+    fseek(filePointer, 0L, SEEK_END);    
+    int fileSize = ftell(filePointer);    
+    fseek(filePointer, 0L, SEEK_SET);  
+
+    unsigned char * buffer = malloc(fileSize);
+    fread(buffer, fileSize, 1, filePointer); 
+    fclose(filePointer);
     unsigned char * hexBuffer = buffer;
-    int bufferLength = 7;
     int opcodeLength = 0;
-    for(int i = 0; i<bufferLength;i+=opcodeLength){
+    for(int i = 0; i<fileSize;i+=opcodeLength){
         Disassemble(hexBuffer,&opcodeLength);
         hexBuffer += opcodeLength;
     }
