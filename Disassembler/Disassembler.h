@@ -4,6 +4,6 @@
     hexBuffer:Opcode
     opcodeLength: Variable to hold the length of the opcode
 */
-void Disassemble(char * hexBuffer, int * opcodeLength);
+void Disassemble(unsigned char * hexBuffer, int * opcodeLength);
 
 #endif
