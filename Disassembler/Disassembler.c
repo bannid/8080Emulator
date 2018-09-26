@@ -269,7 +269,7 @@ void Disassemble(unsigned char * opcode,int * opcodeLength){
         	break;
         }
         case 0x3a:{
-        	printf("LDA %02x",ptr[1]);
+        	printf("LDA %02x%02x",ptr[2],ptr[1]);
         	*opcodeLength = 3;
         	break;
         }
