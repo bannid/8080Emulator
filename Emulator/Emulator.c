@@ -2,8 +2,10 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdint.h>
-int Decoder(unsigned char*);
-void InstructionNotImplemented(unsigned char*);
+struct Flags;
+struct State8080;
+int Decoder(struct State8080*);
+void InstructionNotImplemented(uint16_t);
 void Emulate(unsigned char*);
 struct Flags{
     uint8_t z:1;
@@ -22,7 +24,7 @@ struct State8080{
     uint8_t h;
     uint8_t l;
     uint16_t sp;
-    uint16_t pc;
+    uint8_t * pc;
     uint8_t * memory;
     struct Flags flags;
     int interrup_enabled;
@@ -41,32 +43,40 @@ void Emulate(unsigned char * fileName){
     cpu.memory = malloc(fileSize);
     fread(cpu.memory, fileSize, 1, filePointer); 
     fclose(filePointer);
-    cpu.pc = 0;
+    cpu.pc = cpu.memory;
     //Todo: Refactor this
-    while(cpu.pc < fileSize){
-    	cpu.pc += Decoder(cpu.memory);
-    	cpu.memory += cpu.pc;
+    while(1){
+    	cpu.pc += Decoder(&cpu);
     }
 }
 
-int Decoder(unsigned char * opcode){
+int Decoder(struct State8080 * cpu){
 	//As most opcodes are one byte long,
 	//we gonna have opcodeLength defaulted to 1
 	int opcodeLength = 1;
-	switch(*opcode){
+	switch(cpu->pc[0]){
 		case 0x00:{
+            printf("NOP Executed\n");
 			break;
 		}
+        //Todo: We dont have all the files yet, which is why
+        //this would fail
+        case 0xc3:{
+            printf("JMP Executed\n");
+            uint16_t jmpAddress = ((cpu->pc[2] & 0xff)<<8) | cpu->pc[1];
+            cpu->pc = &cpu->memory[jmpAddress];
+            break;
+        }
 		default:{
             //Todo: Once we have implemented all the instructions,
             //we have to remove this function from the default.
-			InstructionNotImplemented(opcode);
+			InstructionNotImplemented(*(cpu->pc));
 		}
 	}
 	return opcodeLength;
 }
 
-void InstructionNotImplemented(unsigned char * opcode){
-	printf("The instruction %02x is not currently implemented\n",*opcode);
+void InstructionNotImplemented(uint16_t opcode){
+	printf("The instruction %02x is not implemented\n",opcode);
 	exit(0);
 }
