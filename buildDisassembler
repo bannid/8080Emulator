@@ -1,0 +1,3 @@
+gcc -c Disassembler/Disassembler.c
+gcc -c disassemblerTest.c
+gcc disassemblerTest.o Disassembler.o -o disassembler
