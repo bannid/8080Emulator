@@ -1,0 +1,4 @@
+
+gcc -c Emulator/Emulator.c
+gcc -c emulatorTest.c
+gcc emulatorTest.o Emulator.o -o emulator.out

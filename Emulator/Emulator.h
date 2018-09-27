@@ -1,4 +1,5 @@
 #ifndef _EMULATOR_H
 #define _EMULATOR_H
-void Emulate(char * fileName);
+//@params fileName:File to emulate
+void Emulate(unsigned char * fileName);
 #endif

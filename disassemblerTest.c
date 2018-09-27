@@ -15,10 +15,9 @@ int main(int argumentCount, char ** arguments){
     unsigned char * buffer = malloc(fileSize);
     fread(buffer, fileSize, 1, filePointer); 
     fclose(filePointer);
-    unsigned char * hexBuffer = buffer;
     int opcodeLength = 0;
     for(int i = 0; i<fileSize;i+=opcodeLength){
-        Disassemble(hexBuffer,&opcodeLength);
-        hexBuffer += opcodeLength;
+        Disassemble(buffer,&opcodeLength);
+        buffer += opcodeLength;
     }
 }
