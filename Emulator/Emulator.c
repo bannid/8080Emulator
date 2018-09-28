@@ -6,7 +6,12 @@ struct Flags;
 struct State8080;
 int Decoder(struct State8080*);
 void InstructionNotImplemented(uint16_t);
-void Emulate(unsigned char*);
+void PrintStringWithNewLine(const char *);
+uint16_t CalculateAddress(uint8_t, uint8_t);
+uint16_t Parity8Bits(uint8_t);
+uint16_t Parity16Bits(uint16_t);
+void SetFlags(uint16_t lengthInBytes, void * bytes,struct State8080*);
+void PrintFlagsOfCpu(struct State8080*);
 struct Flags{
     uint8_t z:1;
     uint8_t s:1;
@@ -53,18 +58,112 @@ void Emulate(unsigned char * fileName){
 int Decoder(struct State8080 * cpu){
 	//As most opcodes are one byte long,
 	//we gonna have opcodeLength defaulted to 1
-	int opcodeLength = 1;
+	int opcodeLength = 0;
 	switch(cpu->pc[0]){
 		case 0x00:{
-            printf("NOP Executed\n");
+            PrintStringWithNewLine("NOP Executed");
+            opcodeLength = 1;
 			break;
 		}
-        //Todo: We dont have all the files yet, which is why
-        //this would fail
+        case 0x05:{
+            PrintStringWithNewLine("DCR B executed");
+            cpu->b--;
+            SetFlags(1,(void*)cpu->b,cpu);
+            PrintFlagsOfCpu(cpu);
+            opcodeLength = 1;
+            break;
+        }
+        case 0x06:{
+            PrintStringWithNewLine("MVI B executed");
+            cpu->b = cpu->memory[cpu->pc[1]];
+            opcodeLength = 2;
+            break;
+        }
+        case 0x11:{
+            PrintStringWithNewLine("LXI D executed");
+            cpu->d = cpu->pc[2];
+            cpu->e = cpu->pc[1];
+            opcodeLength = 3;
+            break;
+        }
+        case 0x13:{
+            PrintStringWithNewLine("INX D executed");
+            uint16_t address = CalculateAddress(cpu->d,cpu->e);
+            address++;
+            cpu->d = address >> 8;
+            cpu->e = address & 0xff;
+            opcodeLength = 1;
+            break;
+        }
+        case 0x1a:{
+            PrintStringWithNewLine("LDAX D executed");
+            uint16_t address = CalculateAddress(cpu->d,cpu->e);
+            cpu->a = cpu->memory[address];
+            opcodeLength = 1;
+            break;
+        }
+        case 0x21:{
+            PrintStringWithNewLine("LXI H executed");
+            cpu->h = cpu->pc[2];
+            cpu->l = cpu->pc[1];
+            opcodeLength = 3;
+            break;
+        }
+        case 0x23:{
+            PrintStringWithNewLine("INX H executed");
+            uint16_t address = CalculateAddress(cpu->h,cpu->l);
+            address++;
+            cpu->h = address >> 8;
+            cpu->l = address & 0xff;
+            opcodeLength = 1;
+            break;
+        }
+        case 0x31:{
+            PrintStringWithNewLine("LXI SP Executed");
+            cpu->sp = CalculateAddress(cpu->pc[2],cpu->pc[1]);
+            opcodeLength = 3;
+            break;
+        }
+        case 0x77:{
+            PrintStringWithNewLine("MOV M, A executed");
+            uint16_t address = CalculateAddress(cpu->h,cpu->l);
+            cpu->memory[address] = cpu->a;
+            opcodeLength = 1;
+            break;
+        }
+        case 0xc2:{
+            if(cpu->flags.z == 0){
+                uint16_t address = CalculateAddress(cpu->pc[2],cpu->pc[1]);
+                cpu->pc = &cpu->memory[address];
+            }
+            else{
+                opcodeLength = 3;
+            }
+            break;
+        }
         case 0xc3:{
-            printf("JMP Executed\n");
-            uint16_t jmpAddress = ((cpu->pc[2] & 0xff)<<8) | cpu->pc[1];
+            //In jump opcode, we would not change the opocodeLength variable
+            PrintStringWithNewLine("JMP Executed");
+            uint16_t jmpAddress = CalculateAddress(cpu->pc[2],cpu->pc[1]);
             cpu->pc = &cpu->memory[jmpAddress];
+            break;
+        }
+        case 0xc9:{
+            cpu->sp += 2;
+            uint16_t address = CalculateAddress(cpu->memory[cpu->sp - 1],cpu->memory[cpu->sp]);
+            printf("%02x",address);
+            exit(0);
+            cpu->pc = &cpu->memory[address];
+            break;
+        }
+        case 0xcd:{
+            PrintStringWithNewLine("CALL executed");
+            //In call opcode, we would not change the opcodeLength variable
+            uint16_t calledAddress = CalculateAddress(cpu->pc[2],cpu->pc[1]);
+            cpu->memory[cpu->sp] = cpu->pc[4];
+            cpu->memory[(cpu->sp - 1)] = cpu->pc[3];
+            cpu->sp = cpu->sp - 2;
+            cpu->pc = &cpu->memory[calledAddress];
             break;
         }
 		default:{
@@ -75,8 +174,59 @@ int Decoder(struct State8080 * cpu){
 	}
 	return opcodeLength;
 }
-
+//Helper function to print the string with new line
+void PrintStringWithNewLine(const char * string){
+    printf(string);
+    printf("\n");
+}
 void InstructionNotImplemented(uint16_t opcode){
 	printf("The instruction %02x is not implemented\n",opcode);
 	exit(0);
+}
+uint16_t CalculateAddress(uint8_t high, uint8_t low){
+    return (((high & 0xff) << 8) | low);
+}
+
+uint16_t Parity8Bits(uint8_t byte){
+    byte ^= byte >> 4;
+    byte ^= byte >> 2;
+    byte ^= byte >> 1;
+    return (~byte) & 0x1;
+}
+uint16_t Parity16Bits(uint16_t bytes){
+    bytes ^= bytes >> 8;
+    bytes ^= bytes >> 4;
+    bytes ^= bytes >> 2;
+    bytes ^= bytes >> 1;
+    return (~bytes) & 0x1;
+}
+void SetFlags(uint16_t lengthInBytes, void * bytes, struct State8080 * cpu){
+    switch(lengthInBytes){
+        case 1:{
+            uint8_t bytesAsUint = ((uint8_t)bytes);
+            cpu->flags.z = ((bytesAsUint & 0xff) == 0);
+            cpu->flags.s = ((bytesAsUint & 0x80) != 0);
+            cpu->flags.cy = bytesAsUint > 0xff;
+            cpu->flags.p = Parity8Bits(bytesAsUint);
+            break;
+        }
+        case 2:{
+            uint16_t bytesAsUint = ((uint16_t)bytes);
+            cpu->flags.z = ((bytesAsUint & 0xff) == 0);
+            cpu->flags.s = ((bytesAsUint & 0x80) != 0);
+            cpu->flags.cy = bytesAsUint > 0xff;
+            cpu->flags.p = Parity16Bits(bytesAsUint);
+            break;
+        }
+        default:{
+            PrintStringWithNewLine("The length for bytes in function SetFlags is wrong");
+            break;
+        }
+    }
+}
+void PrintFlagsOfCpu(struct State8080 * cpu){
+    printf("Value of z is %02x\n",cpu->flags.z);
+    printf("Value of s is %02x\n",cpu->flags.s);
+    printf("Value of p is %02x\n",cpu->flags.p);
+    printf("Value of cy is %02x\n",cpu->flags.cy);
 }
