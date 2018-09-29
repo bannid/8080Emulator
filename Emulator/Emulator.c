@@ -56,8 +56,6 @@ void Emulate(unsigned char * fileName){
 }
 
 int Decoder(struct State8080 * cpu){
-	//As most opcodes are one byte long,
-	//we gonna have opcodeLength defaulted to 1
 	int opcodeLength = 0;
     printf("%04x         ",cpu->pc);
 	switch(cpu->memory[cpu->pc]){
@@ -190,7 +188,6 @@ int Decoder(struct State8080 * cpu){
             break;
         }
         case 0xc3:{
-            //In jump opcode, we would not change the opocodeLength variable
             PrintStringWithNewLine("JMP Executed");
             uint16_t jmpAddress = CalculateAddress(cpu->memory[cpu->pc + 2],cpu->memory[cpu->pc + 1]);
             cpu->pc = jmpAddress;
