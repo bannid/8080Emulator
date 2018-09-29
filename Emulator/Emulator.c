@@ -29,7 +29,7 @@ struct State8080{
     uint8_t h;
     uint8_t l;
     uint16_t sp;
-    uint8_t * pc;
+    uint16_t pc;
     uint8_t * memory;
     struct Flags flags;
     int interrup_enabled;
@@ -48,7 +48,7 @@ void Emulate(unsigned char * fileName){
     cpu.memory = malloc(fileSize);
     fread(cpu.memory, fileSize, 1, filePointer); 
     fclose(filePointer);
-    cpu.pc = cpu.memory;
+    cpu.pc = 0x00;
     //Todo: Refactor this
     while(1){
     	cpu.pc += Decoder(&cpu);
@@ -59,7 +59,8 @@ int Decoder(struct State8080 * cpu){
 	//As most opcodes are one byte long,
 	//we gonna have opcodeLength defaulted to 1
 	int opcodeLength = 0;
-	switch(cpu->pc[0]){
+    printf("%04x         ",cpu->pc);
+	switch(cpu->memory[cpu->pc]){
 		case 0x00:{
             PrintStringWithNewLine("NOP Executed");
             opcodeLength = 1;
@@ -69,20 +70,25 @@ int Decoder(struct State8080 * cpu){
             PrintStringWithNewLine("DCR B executed");
             cpu->b--;
             SetFlags(1,(void*)cpu->b,cpu);
-            PrintFlagsOfCpu(cpu);
             opcodeLength = 1;
             break;
         }
         case 0x06:{
             PrintStringWithNewLine("MVI B executed");
-            cpu->b = cpu->memory[cpu->pc[1]];
+            cpu->b = cpu->memory[cpu->pc + 1];
             opcodeLength = 2;
+            break;
+        }
+        case 0x0e:{
+            PrintStringWithNewLine("MVI C, D8 Executed");
+            cpu->c = cpu->memory[cpu->pc + 1];
+            opcodeLength = 2 ;
             break;
         }
         case 0x11:{
             PrintStringWithNewLine("LXI D executed");
-            cpu->d = cpu->pc[2];
-            cpu->e = cpu->pc[1];
+            cpu->d = cpu->memory[cpu->pc + 2];
+            cpu->e = cpu->memory[cpu->pc + 1];
             opcodeLength = 3;
             break;
         }
@@ -104,8 +110,8 @@ int Decoder(struct State8080 * cpu){
         }
         case 0x21:{
             PrintStringWithNewLine("LXI H executed");
-            cpu->h = cpu->pc[2];
-            cpu->l = cpu->pc[1];
+            cpu->h = cpu->memory[cpu->pc + 2];
+            cpu->l = cpu->memory[cpu->pc + 1];;
             opcodeLength = 3;
             break;
         }
@@ -118,23 +124,65 @@ int Decoder(struct State8080 * cpu){
             opcodeLength = 1;
             break;
         }
+        case 0x26:{
+            PrintStringWithNewLine("MVI H, D8 Executed");
+            cpu->h = cpu->memory[cpu->pc + 1];
+            opcodeLength = 2;
+            break;
+        }
+        case 0x29:{
+            PrintStringWithNewLine("DAD H Executed");
+            uint16_t combinedHL = ((cpu->h & 0xff) << 8) | cpu->l;
+            uint32_t resultAs32Bits = combinedHL + combinedHL;
+            uint16_t resultAs16Bits = combinedHL + combinedHL;
+            if(resultAs32Bits > 0xffff){
+                cpu->flags.cy = 1;
+            }
+            else {
+                cpu->flags.cy = 0;
+            }
+            cpu->h = resultAs16Bits & 0xff00;
+            cpu->l = resultAs16Bits & 0xff;
+            opcodeLength = 1;
+            break;
+        }
         case 0x31:{
             PrintStringWithNewLine("LXI SP Executed");
-            cpu->sp = CalculateAddress(cpu->pc[2],cpu->pc[1]);
+            cpu->sp = CalculateAddress(cpu->memory[cpu->pc + 2],cpu->memory[cpu->pc + 1]);
             opcodeLength = 3;
             break;
         }
+        case 0x36:{
+            PrintStringWithNewLine("MVI M, D8 Executed");
+            uint16_t address = CalculateAddress(cpu->h,cpu->l);
+            cpu->memory[address] = cpu->memory[cpu->pc + 1];
+            opcodeLength = 2;
+            break;
+        }
+        case 0x6f:{
+            PrintStringWithNewLine("MVI L, A Executed");
+            cpu->l = cpu->a;
+            opcodeLength = 1;
+            break;
+        }
         case 0x77:{
-            PrintStringWithNewLine("MOV M, A executed");
+            PrintStringWithNewLine("MOV M, A Executed");
             uint16_t address = CalculateAddress(cpu->h,cpu->l);
             cpu->memory[address] = cpu->a;
             opcodeLength = 1;
             break;
         }
+        case 0x7c:{
+            PrintStringWithNewLine("MOV A, H Executed");
+            cpu->a = cpu->h;
+            opcodeLength = 1;
+            break;
+        }
         case 0xc2:{
+            PrintStringWithNewLine("JNZ Executed");
             if(cpu->flags.z == 0){
-                uint16_t address = CalculateAddress(cpu->pc[2],cpu->pc[1]);
-                cpu->pc = &cpu->memory[address];
+                uint16_t address = CalculateAddress(cpu->memory[cpu->pc + 2],cpu->memory[cpu->pc + 1]);
+                cpu->pc = address;
             }
             else{
                 opcodeLength = 3;
@@ -144,32 +192,57 @@ int Decoder(struct State8080 * cpu){
         case 0xc3:{
             //In jump opcode, we would not change the opocodeLength variable
             PrintStringWithNewLine("JMP Executed");
-            uint16_t jmpAddress = CalculateAddress(cpu->pc[2],cpu->pc[1]);
-            cpu->pc = &cpu->memory[jmpAddress];
+            uint16_t jmpAddress = CalculateAddress(cpu->memory[cpu->pc + 2],cpu->memory[cpu->pc + 1]);
+            cpu->pc = jmpAddress;
             break;
         }
         case 0xc9:{
+            PrintStringWithNewLine("RET executed");
+            uint16_t address = CalculateAddress(cpu->memory[cpu->sp + 1],cpu->memory[cpu->sp]);
             cpu->sp += 2;
-            uint16_t address = CalculateAddress(cpu->memory[cpu->sp - 1],cpu->memory[cpu->sp]);
-            printf("%02x",address);
-            exit(0);
-            cpu->pc = &cpu->memory[address];
+            cpu->pc = address;
             break;
         }
         case 0xcd:{
             PrintStringWithNewLine("CALL executed");
             //In call opcode, we would not change the opcodeLength variable
-            uint16_t calledAddress = CalculateAddress(cpu->pc[2],cpu->pc[1]);
-            cpu->memory[cpu->sp] = cpu->pc[4];
-            cpu->memory[(cpu->sp - 1)] = cpu->pc[3];
-            cpu->sp = cpu->sp - 2;
-            cpu->pc = &cpu->memory[calledAddress];
+            
+            //Todo: We dont need this calculation
+            uint16_t calledAddress = CalculateAddress(cpu->memory[cpu->pc + 2],cpu->memory[cpu->pc + 1]);
+            uint16_t returnAddress = cpu->pc + 3;
+            cpu->memory[cpu->sp - 1] = (returnAddress & 0xff00) >> 8;
+            cpu->memory[cpu->sp - 2] = returnAddress & 0xff;
+            cpu->sp -= 2;
+            cpu->pc = calledAddress;
+            break;
+        }
+        case 0xd5:{
+            PrintStringWithNewLine("PUSH D Executed");
+            cpu->memory[cpu->sp - 2] = cpu->e;
+            cpu->memory[cpu->sp - 1] = cpu->d;
+            cpu->sp -= 2;
+            opcodeLength = 1;
+            break;
+        }
+        case 0xe5:{
+            PrintStringWithNewLine("PUSH H Executed");
+            cpu->memory[cpu->sp - 2] = cpu->l;
+            cpu->memory[cpu->sp - 1] = cpu->h;
+            cpu->sp -= 2;
+            opcodeLength = 1;
+            break;
+        }
+        case 0xfe:{
+            PrintStringWithNewLine("CPI D8 Executed");
+            uint8_t result = cpu->a - cpu->memory[cpu->pc + 1];
+            SetFlags(1,(void*)result,cpu);
+            opcodeLength = 2;
             break;
         }
 		default:{
             //Todo: Once we have implemented all the instructions,
             //we have to remove this function from the default.
-			InstructionNotImplemented(*(cpu->pc));
+			InstructionNotImplemented(cpu->memory[cpu->pc]);
 		}
 	}
 	return opcodeLength;
@@ -220,6 +293,7 @@ void SetFlags(uint16_t lengthInBytes, void * bytes, struct State8080 * cpu){
         }
         default:{
             PrintStringWithNewLine("The length for bytes in function SetFlags is wrong");
+            exit(0);
             break;
         }
     }

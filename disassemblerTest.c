@@ -1,5 +1,6 @@
 #include <stdlib.h>
 #include <stdio.h>
+#include <stdint.h>
 #include "Disassembler/Disassembler.h"
 int main(int argumentCount, char ** arguments){
 	FILE * filePointer = fopen(arguments[1], "rb");
@@ -16,7 +17,8 @@ int main(int argumentCount, char ** arguments){
     fread(buffer, fileSize, 1, filePointer); 
     fclose(filePointer);
     int opcodeLength = 0;
-    for(int i = 0; i<fileSize;i+=opcodeLength){
+    for(uint16_t i = 0; i<fileSize;i+=opcodeLength){
+        printf("%02x               ",i);
         Disassemble(buffer,&opcodeLength);
         buffer += opcodeLength;
     }
