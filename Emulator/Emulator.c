@@ -10,8 +10,9 @@ void PrintStringWithNewLine(const char *);
 uint16_t CalculateAddress(uint8_t, uint8_t);
 uint16_t Parity8Bits(uint8_t);
 uint16_t Parity16Bits(uint16_t);
-void SetFlags(uint16_t lengthInBytes, void * bytes,struct State8080*);
+void SetFlags(uint16_t lengthInBytes, void *,struct State8080*);
 void PrintFlagsOfCpu(struct State8080*);
+void Push(uint8_t, uint8_t, struct State8080*);
 struct Flags{
     uint8_t z:1;
     uint8_t s:1;
@@ -64,6 +65,13 @@ int Decoder(struct State8080 * cpu){
             opcodeLength = 1;
 			break;
 		}
+        case 0x01:{
+            PrintStringWithNewLine("LXI B, D16 Executed");
+            cpu->b = cpu->memory[cpu->pc + 2];
+            cpu->c = cpu->memory[cpu->pc + 1];
+            opcodeLength = 3;
+            break;
+        }
         case 0x05:{
             PrintStringWithNewLine("DCR B executed");
             cpu->b--;
@@ -96,6 +104,23 @@ int Decoder(struct State8080 * cpu){
             address++;
             cpu->d = address >> 8;
             cpu->e = address & 0xff;
+            opcodeLength = 1;
+            break;
+        }
+        case 0x19:{
+            PrintStringWithNewLine("DAD D Executed");
+            uint16_t addressFromHl = CalculateAddress(cpu->h,cpu->l);
+            uint16_t addressFromDe = CalculateAddress(cpu->d,cpu->e);
+            uint32_t resultAs32Bits = addressFromHl + addressFromDe;
+            uint16_t resultAs16Bits = addressFromHl + addressFromDe;
+            if(resultAs32Bits > 0xffff){
+                cpu->flags.cy = 1;
+            }
+            else {
+                cpu->flags.cy = 0;
+            }
+            cpu->h = resultAs16Bits & 0xff00;
+            cpu->l = resultAs16Bits & 0xff;
             opcodeLength = 1;
             break;
         }
@@ -193,6 +218,12 @@ int Decoder(struct State8080 * cpu){
             cpu->pc = jmpAddress;
             break;
         }
+        case 0xc5:{
+            PrintStringWithNewLine("PUSH B Executed");
+            Push(cpu->b,cpu->c,cpu);
+            opcodeLength = 1;
+            break;
+        }
         case 0xc9:{
             PrintStringWithNewLine("RET executed");
             uint16_t address = CalculateAddress(cpu->memory[cpu->sp + 1],cpu->memory[cpu->sp]);
@@ -213,6 +244,11 @@ int Decoder(struct State8080 * cpu){
             cpu->pc = calledAddress;
             break;
         }
+        case 0xd3:{
+            PrintStringWithNewLine("OUT D8 Special executed");
+            opcodeLength = 2;
+            break;
+        }
         case 0xd5:{
             PrintStringWithNewLine("PUSH D Executed");
             cpu->memory[cpu->sp - 2] = cpu->e;
@@ -221,11 +257,28 @@ int Decoder(struct State8080 * cpu){
             opcodeLength = 1;
             break;
         }
+        case 0xe1:{
+            PrintStringWithNewLine("POP H Executed");
+            cpu->l = cpu->memory[cpu->sp];
+            cpu->h = cpu->memory[cpu->sp + 1];
+            cpu->sp += 2;
+            opcodeLength = 1;
+            break;
+        }
         case 0xe5:{
             PrintStringWithNewLine("PUSH H Executed");
-            cpu->memory[cpu->sp - 2] = cpu->l;
-            cpu->memory[cpu->sp - 1] = cpu->h;
-            cpu->sp -= 2;
+            Push(cpu->h,cpu->l,cpu);
+            opcodeLength = 1;
+            break;
+        }
+        case 0xeb:{
+            PrintStringWithNewLine("XCHG Executed");
+            uint8_t h = cpu->h;
+            uint8_t l = cpu->l;
+            cpu->h = cpu->d;
+            cpu->l = cpu->e;
+            cpu->d = h;
+            cpu->e = l;
             opcodeLength = 1;
             break;
         }
@@ -243,6 +296,11 @@ int Decoder(struct State8080 * cpu){
 		}
 	}
 	return opcodeLength;
+}
+void Push(uint8_t high, uint8_t low, struct State8080 * cpu){
+    cpu->memory[cpu->sp - 2] = low;
+    cpu->memory[cpu->sp - 1] = high;
+    cpu->sp -= 2;
 }
 //Helper function to print the string with new line
 void PrintStringWithNewLine(const char * string){
