@@ -10,9 +10,10 @@ void PrintStringWithNewLine(const char *);
 uint16_t CalculateAddress(uint8_t, uint8_t);
 uint16_t Parity8Bits(uint8_t);
 uint16_t Parity16Bits(uint16_t);
-void SetFlags(uint16_t lengthInBytes, void *,struct State8080*);
+void SetFlags(uint16_t lengthInBytes, void*,struct State8080*);
 void PrintFlagsOfCpu(struct State8080*);
 void Push(uint8_t, uint8_t, struct State8080*);
+void Pop(uint8_t*, uint8_t*, struct State8080*);
 struct Flags{
     uint8_t z:1;
     uint8_t s:1;
@@ -83,6 +84,30 @@ int Decoder(struct State8080 * cpu){
             PrintStringWithNewLine("MVI B executed");
             cpu->b = cpu->memory[cpu->pc + 1];
             opcodeLength = 2;
+            break;
+        }
+        case 0x09:{
+            PrintStringWithNewLine("DAD B Executed");
+            uint16_t addressFromHl = CalculateAddress(cpu->h,cpu->l);
+            uint16_t addressFromBc = CalculateAddress(cpu->b,cpu->c);
+            uint32_t resultAs32Bits = addressFromHl + addressFromBc;
+            uint16_t resultAs16Bits = addressFromHl + addressFromBc;
+            if(resultAs32Bits > 0xffff){
+                cpu->flags.cy = 1;
+            }
+            else {
+                cpu->flags.cy = 0;
+            }
+            cpu->h = resultAs16Bits & 0xff00;
+            cpu->l = resultAs16Bits & 0xff;
+            opcodeLength = 1;
+            break;
+        }
+        case 0x0d:{
+            PrintStringWithNewLine("DCR C executed");
+            cpu->c--;
+            SetFlags(1,(void*)cpu->c,cpu);
+            opcodeLength = 1;
             break;
         }
         case 0x0e:{
@@ -182,6 +207,28 @@ int Decoder(struct State8080 * cpu){
             opcodeLength = 2;
             break;
         }
+
+        case 0x56:{
+            PrintStringWithNewLine("MOV D,M Executed");
+            uint16_t address = CalculateAddress(cpu->h,cpu->l);
+            cpu->d = cpu->memory[address];
+            opcodeLength = 1;
+            break;
+        }
+        case 0x5e:{
+            PrintStringWithNewLine("MOV E,M Executed");
+            uint16_t address = CalculateAddress(cpu->h,cpu->l);
+            cpu->e = cpu->memory[address];
+            opcodeLength = 1;
+            break;
+        }
+        case 0x66:{
+            PrintStringWithNewLine("MOV H,M Executed");
+            uint16_t address = CalculateAddress(cpu->h,cpu->l);
+            cpu->h = cpu->memory[address];
+            opcodeLength = 1;
+            break;
+        }
         case 0x6f:{
             PrintStringWithNewLine("MVI L, A Executed");
             cpu->l = cpu->a;
@@ -198,6 +245,19 @@ int Decoder(struct State8080 * cpu){
         case 0x7c:{
             PrintStringWithNewLine("MOV A, H Executed");
             cpu->a = cpu->h;
+            opcodeLength = 1;
+            break;
+        }
+        case 0x7e:{
+            PrintStringWithNewLine("MOV A,M Executed");
+            uint16_t address = CalculateAddress(cpu->h,cpu->l);
+            cpu->a = cpu->memory[address];
+            opcodeLength = 1;
+            break;
+        }
+        case 0xc1:{
+            PrintStringWithNewLine("POP B Executed");
+            Pop(&cpu->b,&cpu->c,cpu);
             opcodeLength = 1;
             break;
         }
@@ -243,6 +303,11 @@ int Decoder(struct State8080 * cpu){
             cpu->sp -= 2;
             cpu->pc = calledAddress;
             break;
+        }case 0xd1:{
+            PrintStringWithNewLine("POP D Executed");
+            Pop(&cpu->d,&cpu->e,cpu);
+            opcodeLength = 1;
+            break;
         }
         case 0xd3:{
             PrintStringWithNewLine("OUT D8 Special executed");
@@ -259,9 +324,7 @@ int Decoder(struct State8080 * cpu){
         }
         case 0xe1:{
             PrintStringWithNewLine("POP H Executed");
-            cpu->l = cpu->memory[cpu->sp];
-            cpu->h = cpu->memory[cpu->sp + 1];
-            cpu->sp += 2;
+            Pop(&cpu->h,&cpu->l,cpu);
             opcodeLength = 1;
             break;
         }
@@ -296,6 +359,11 @@ int Decoder(struct State8080 * cpu){
 		}
 	}
 	return opcodeLength;
+}
+void Pop(uint8_t * high, uint8_t * low, struct State8080 * cpu){
+    *low = cpu->memory[cpu->sp];
+    *high = cpu->memory[cpu->sp + 1];
+    cpu->sp += 2;
 }
 void Push(uint8_t high, uint8_t low, struct State8080 * cpu){
     cpu->memory[cpu->sp - 2] = low;
@@ -334,7 +402,9 @@ void SetFlags(uint16_t lengthInBytes, void * bytes, struct State8080 * cpu){
             uint8_t bytesAsUint = ((uint8_t)bytes);
             cpu->flags.z = ((bytesAsUint & 0xff) == 0);
             cpu->flags.s = ((bytesAsUint & 0x80) != 0);
-            cpu->flags.cy = bytesAsUint > 0xff;
+            if(cpu->memory[cpu->pc] == 0xfe){
+                cpu->flags.cy = bytesAsUint > 0xff;
+            }
             cpu->flags.p = Parity8Bits(bytesAsUint);
             break;
         }
@@ -342,7 +412,9 @@ void SetFlags(uint16_t lengthInBytes, void * bytes, struct State8080 * cpu){
             uint16_t bytesAsUint = ((uint16_t)bytes);
             cpu->flags.z = ((bytesAsUint & 0xff) == 0);
             cpu->flags.s = ((bytesAsUint & 0x80) != 0);
-            cpu->flags.cy = bytesAsUint > 0xff;
+            if(cpu->memory[cpu->pc] == 0xfe){
+                cpu->flags.cy = bytesAsUint > 0xff;
+            }
             cpu->flags.p = Parity16Bits(bytesAsUint);
             break;
         }
