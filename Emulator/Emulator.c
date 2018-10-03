@@ -116,6 +116,19 @@ int Decoder(struct State8080 * cpu){
             opcodeLength = 2 ;
             break;
         }
+        case 0x0f:{
+            PrintStringWithNewLine("RRC Executed");
+            uint8_t bitZero = cpu->a & 0x01;
+            cpu->a = cpu->a >> 1;
+            if(bitZero){
+                cpu->a = cpu->a | 0x80;
+            }
+            else{
+                cpu->a = cpu->a | 0x00;
+            }
+            opcodeLength = 1;
+            break;
+        }
         case 0x11:{
             PrintStringWithNewLine("LXI D executed");
             cpu->d = cpu->memory[cpu->pc + 2];
@@ -242,6 +255,12 @@ int Decoder(struct State8080 * cpu){
             opcodeLength = 1;
             break;
         }
+        case 0x7a:{
+            PrintStringWithNewLine("MOV A,D Executed");
+            cpu->a = cpu->d;
+            opcodeLength = 1;
+            break;
+        }
         case 0x7c:{
             PrintStringWithNewLine("MOV A, H Executed");
             cpu->a = cpu->h;
@@ -342,6 +361,18 @@ int Decoder(struct State8080 * cpu){
             cpu->l = cpu->e;
             cpu->d = h;
             cpu->e = l;
+            opcodeLength = 1;
+            break;
+        }
+        case 0xf5:{
+            PrintStringWithNewLine("PUSH PSW Executed");
+            uint8_t flagsInOneByte = (cpu->flags.z & 0xff) << 1;
+            flagsInOneByte = (flagsInOneByte | cpu->flags.s) << 1;
+            flagsInOneByte = (flagsInOneByte | cpu->flags.p) << 1;
+            flagsInOneByte = (flagsInOneByte | cpu->flags.cy);
+            cpu->memory[cpu->sp - 2] = flagsInOneByte;
+            cpu->memory[cpu->sp - 1] = cpu->a;
+            cpu->sp -= 2;
             opcodeLength = 1;
             break;
         }
